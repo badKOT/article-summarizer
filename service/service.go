@@ -8,6 +8,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	"article-summarizer/connectors"
 	"article-summarizer/constants"
@@ -107,6 +108,8 @@ func modelsApiCall(msg string) string {
 		}
 	}
 
+	// I had an idea about returning like a little summary for every model: contextLen, modalities, pricing
+	// Saved this marshal section in case I want to implement that.
 	// result, err := json.Marshal(short)
 	// if err != nil {
 	// 	log.Printf("Error occurred while marshaling filtered models: %v", err)
@@ -120,6 +123,10 @@ func callAgent(ctx context.Context, msg string, chatId int64) string {
 	os.Setenv("AGK_TRACE", "true") // Enable observability
 
 	model := getCurrentModel(chatId)
+	if model == "" {
+		model = os.Getenv("DEFAULT_LLM")
+		db.GetDB().NewChatWithDefaults(fmt.Sprintf("%d", chatId), model)
+	}
 	requestCtx := context.WithValue(ctx, "chatId", chatId)
 
 	agent, err := v1beta.NewBuilder("ChatAgent").
@@ -128,14 +135,23 @@ func callAgent(ctx context.Context, msg string, chatId int64) string {
 			SystemPrompt: constants.SystemPrompt,
 			Timeout:      120,
 			LLM: v1beta.LLMConfig{
-				Provider:  "openrouter",
-				Model:     model,
-				APIKey:    connectors.OpenRouterApiKey,
-				MaxTokens: 50000,
+				Provider:    "openrouter",
+				Model:       model,
+				APIKey:      connectors.OpenRouterApiKey,
+				MaxTokens:   10000,
+				Temperature: 0.3,
+			},
+			Tools: &v1beta.ToolsConfig{
+				Enabled:       true,
+				MaxConcurrent: 3,
+				Timeout:       45 * time.Second,
+				Reasoning: &v1beta.ReasoningConfig{
+					Enabled:           true,
+					MaxIterations:     3,
+					ContinueOnToolUse: true,
+				},
 			},
 		}).
-		WithTools().
-		WithHandler(customHandler).
 		Build()
 	if err != nil {
 		log.Fatal(err)
@@ -151,39 +167,4 @@ func callAgent(ctx context.Context, msg string, chatId int64) string {
 	log.Print("Response: ", result.Content)
 	log.Print(result.TokensUsed)
 	return result.Content
-}
-
-func customHandler(ctx context.Context, input string, caps *v1beta.Capabilities) (string, error) {
-	log.Print("customHandler: ", input)
-	lines := strings.Split(input, "\n")
-	var toolName string
-	var toolInput string
-	for _, line := range lines {
-		switch {
-		case strings.HasPrefix(line, "Action: "):
-			toolName = strings.Split(line, ": ")[1]
-		case strings.HasPrefix(line, "Action Input: "):
-			toolInput = line[len("Action Input: "):]
-		}
-	}
-	log.Print("customHandler: ", toolName, " called with ", toolInput)
-	args := make(map[string]any)
-	if err := json.Unmarshal([]byte(toolInput), &args); err != nil {
-		log.Printf("Error parsing toolInput: %v", err)
-		return caps.LLM(fmt.Sprintf("Error parsing toolInput: %v", err), input)
-	}
-
-	res, err := v1beta.ExecuteToolByName(ctx, toolName, args)
-	if err != nil {
-		if caps != nil && caps.LLM != nil {
-			return caps.LLM("", fmt.Sprintf("Tool execution failed: %v", err))
-		}
-		return fmt.Sprintf("Tool execution failed: %v", err), nil
-	}
-
-	if caps != nil && caps.LLM != nil {
-		return caps.LLM("", fmt.Sprint(res.Content))
-	}
-
-	return fmt.Sprint(res.Content), nil
 }

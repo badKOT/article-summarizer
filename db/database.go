@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"log"
 
 	_ "github.com/lib/pq"
 )
@@ -17,6 +18,7 @@ type Database interface {
 	UpdateChatInfo(chatId, model, summary string) error
 	GetModelForChatId(chatId string) (string, error)
 	GetLastSummary(chatId string) (string, error)
+	NewChatWithDefaults(chatId, model string) error
 	Close()
 }
 
@@ -79,8 +81,8 @@ func (d *SqlDB) GetModelForChatId(chatId string) (string, error) {
 	return model, nil
 }
 
-func (d * SqlDB) GetLastSummary(chatId string) (string, error) {
-	var summary string
+func (d *SqlDB) GetLastSummary(chatId string) (string, error) {
+	var summary any
 	err := d.QueryRow(`SELECT last_summary from chat_info WHERE chat_id = $1`, chatId).Scan(&summary)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -88,7 +90,24 @@ func (d * SqlDB) GetLastSummary(chatId string) (string, error) {
 		}
 		return "", fmt.Errorf("failed to get last article for chat id: %w", err)
 	}
-	return summary, nil
+	if summary == nil {
+		return "<empty>", nil
+	}
+	return summary.(string), nil
+}
+
+func (d *SqlDB) NewChatWithDefaults(chatId, model string) error {
+	log.Printf("Adding new chat to db, chatId=%s", chatId)
+	if chatId == "" || model == "" {
+		return fmt.Errorf("failed to initialize new chat. both chatId and model should be present. chatId=%s, model=%s", chatId, model)
+	}
+
+	query := `INSERT INTO chat_info(chat_id, model, last_summary) VALUES ($1, $2, NULL);`
+	_, err := d.Exec(query, chatId, model)
+	if err != nil {
+		return fmt.Errorf("failed to insert chat for chat id: %w", err)
+	}
+	return nil
 }
 
 func createTables(d *SqlDB) error {
