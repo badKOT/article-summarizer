@@ -40,6 +40,8 @@ services:
       - postgres
     env_file:
       - .env
+    volumes:
+      - ./.env:/app/.env:ro
     environment:
       WEBHOOK_URL: https://article-summarizer.zapto.org
       DB_HOST: postgres
