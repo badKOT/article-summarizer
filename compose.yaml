@@ -1,0 +1,60 @@
+services:
+  traefik:
+    image: "traefik"
+    restart: always
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.web.http.redirections.entryPoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.mytlschallenge.acme.tlschallenge=true"
+      - "--certificatesresolvers.mytlschallenge.acme.email=${SSL_EMAIL}"
+      - "--certificatesresolvers.mytlschallenge.acme.storage=/letsencrypt/acme.json"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - traefik_data:/letsencrypt
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+  postgres:
+    image: postgres:latest
+    container_name: article-summarizer-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: summarizer
+      POSTGRES_PASSWORD: summarizer123
+      POSTGRES_DB: article_summarizer
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    env_file:
+      - .env
+    environment:
+      WEBHOOK_URL: https://article-summarizer.zapto.org
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: summarizer
+      DB_PASSWORD: summarizer123
+      DB_NAME: article_summarizer
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.app.rule=Host(`article-summarizer.zapto.org`)
+      - traefik.http.routers.app.entrypoints=web,websecure
+      - traefik.http.routers.app.tls=true
+      - traefik.http.routers.app.tls.certresolver=mytlschallenge
+      - traefik.http.services.app.loadbalancer.server.port=8080
+
+volumes:
+  postgres_data:
+  traefik_data:
