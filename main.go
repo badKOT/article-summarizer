@@ -71,7 +71,12 @@ func main() {
 
 	go func() {
 		log.Print("Starting HTTP webhook server on :8080")
-		if err := http.ListenAndServe(":8080", b.WebhookHandler()); err != nil {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		})
+		mux.Handle("/", b.WebhookHandler())
+		if err := http.ListenAndServe(":8080", mux); err != nil {
 			log.Fatalf("HTTP server failed: %v", err)
 		}
 	}()

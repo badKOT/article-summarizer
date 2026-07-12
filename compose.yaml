@@ -56,6 +56,7 @@ services:
       - traefik.http.routers.app.tls=true
       - traefik.http.routers.app.tls.certresolver=mytlschallenge
       - traefik.http.services.app.loadbalancer.server.port=8080
+      - traefik.http.services.app.loadbalancer.healthcheck.path=/health
 
 volumes:
   postgres_data:
