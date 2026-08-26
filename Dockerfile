@@ -11,6 +11,7 @@ FROM alpine:3.20
 RUN apk add --no-cache ca-certificates && adduser -D -u 10001 app
 WORKDIR /app
 COPY --from=build /out/app /app/app
+ENV AGK_TRACE=false
 USER app
 EXPOSE 8080
 ENTRYPOINT ["/app/app"]
