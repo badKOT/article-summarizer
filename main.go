@@ -90,14 +90,22 @@ func main() {
 }
 
 func handler(ctx context.Context, b *bot.Bot, update *models.Update) {
+	const maxMessageLength = 4000
+
 	msg := update.Message.Text
 	log.Printf("Received message from chat %d: '%s'", update.Message.Chat.ID, msg)
 	response := service.HandleCommands(ctx, msg, update)
-	if _, err := b.SendMessage(ctx, &bot.SendMessageParams{
-		ChatID: update.Message.Chat.ID,
-		Text:   response,
-	}); err != nil {
-		log.Printf("Failed to send message to chat %d: %v", update.Message.Chat.ID, err)
+	characters := []rune(response)
+
+	// divide the response into chunks of 4k characters to pass the message size limit
+	for start := 0; start < len(characters); start += maxMessageLength {
+		end := min(start+maxMessageLength, len(characters))
+		if _, err := b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: update.Message.Chat.ID,
+			Text:   string(characters[start:end]),
+		}); err != nil {
+			log.Printf("Failed to send message to chat %d: %v", update.Message.Chat.ID, err)
+		}
 	}
 }
 
