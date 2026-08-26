@@ -66,7 +66,8 @@ func main() {
 	log.Print("Telegram Bot was initialized!")
 
 	b.SetWebhook(ctx, &bot.SetWebhookParams{
-		URL: os.Getenv("WEBHOOK_URL"),
+		URL:            os.Getenv("WEBHOOK_URL"),
+		AllowedUpdates: []string{"message", "edited_message"},
 	})
 
 	go func() {
