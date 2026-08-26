@@ -22,17 +22,20 @@ import (
 
 func main() {
 	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
-	err := godotenv.Load()
-	if err != nil {
+	if err := godotenv.Load(); err != nil {
 		log.Fatalf("Error loading .env file: %v", err)
 	}
 
 	// init db
-	dbHost := getEnv("DB_HOST", "localhost")
-	dbPort := getEnv("DB_PORT", "5432")
-	dbUser := getEnv("DB_USER", "summarizer")
-	dbPassword := getEnv("DB_PASSWORD", "summarizer123")
-	dbName := getEnv("DB_NAME", "article_summarizer")
+	dbHost := os.Getenv("DB_HOST")
+	dbPort := os.Getenv("DB_PORT")
+	dbUser := os.Getenv("DB_USER")
+	dbPassword := os.Getenv("DB_PASSWORD")
+	dbName := os.Getenv("DB_NAME")
+	if dbHost == "" || dbPort == "" || dbUser == "" || dbPassword == "" || dbName == "" {
+		log.Fatalf("DB connection failed. The following envs need to be set: DB_HOST=%s, DB_PORT=%s, DB_USER=%s, DB_PASSWORD=%s, DB_NAME=%s",
+			dbHost, dbPort, dbUser, dbPassword, dbName)
+	}
 
 	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
 		dbHost, dbPort, dbUser, dbPassword, dbName)
@@ -108,11 +111,4 @@ func handler(ctx context.Context, b *bot.Bot, update *models.Update) {
 			log.Printf("Failed to send message to chat %d: %v", update.Message.Chat.ID, err)
 		}
 	}
-}
-
-func getEnv(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
 }

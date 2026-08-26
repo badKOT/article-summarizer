@@ -42,13 +42,6 @@ services:
       - .env
     volumes:
       - ./.env:/app/.env:ro
-    environment:
-      WEBHOOK_URL: https://article-summarizer.zapto.org
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_USER: summarizer
-      DB_PASSWORD: summarizer123
-      DB_NAME: article_summarizer
     labels:
       - traefik.enable=true
       - traefik.http.routers.app.rule=Host(`article-summarizer.zapto.org`)
